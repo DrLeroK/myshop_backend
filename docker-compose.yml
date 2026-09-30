@@ -1,0 +1,57 @@
+services:
+  # ============================================================================
+  # MyShop Platform - Express Backend Application Engine
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myshop_backend_app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-myshop_db}?schema=public
+      - NODE_ENV=${NODE_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - myshop_network
+
+  # ============================================================================
+  # PostgreSQL Database (Multi-Shop Relational Ledger & Sales Store)
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: myshop_backend_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-myshop_db}
+    ports:
+      - "${DOCKER_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myshop_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - myshop_network
+
+# ==============================================================================
+# Persistent Volumes & Network Definitions
+# ==============================================================================
+volumes:
+  postgres_data:
+    name: myshop_postgres_data
+
+networks:
+  myshop_network:
+    name: myshop_backend_network
+    driver: bridge

@@ -1,0 +1,291 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  CASHIER
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE_MONEY
+  OTHER
+}
+
+enum ExpenseCategory {
+  RENT
+  UTILITIES
+  RESTOCK
+  SALARY
+  MAINTENANCE
+  MARKETING
+  OTHER
+}
+
+enum AlertType {
+  LOW_STOCK
+  SALES_SPIKE
+  UNUSUALLY_LOW_SALES
+  SUBSCRIPTION_WARNING
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum PackageType {
+  ONE_MONTH
+  THREE_MONTHS
+  SIX_MONTHS
+  ONE_YEAR
+}
+
+enum SubscriptionStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  EXPIRED
+  REJECTED
+}
+
+model User {
+  id               Int                @id @default(autoincrement())
+  email            String             @unique
+  password         String
+  name             String
+  role             Role               @default(OWNER)
+  shopId           Int?
+  assignedShop     Shop?              @relation("ShopStaff", fields: [shopId], references: [id], onDelete: SetNull)
+  ownedShops       Shop[]             @relation("ShopOwner")
+  subscriptions    ShopSubscription[] @relation("UserSubscriptions")
+  sales            Sale[]
+  expenses         Expense[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([role])
+}
+
+model Shop {
+  id           Int               @id @default(autoincrement())
+  name         String
+  address      String?
+  phone        String?
+  currency     String            @default("USD")
+  ownerId      Int
+  owner        User              @relation("ShopOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  staff        User[]            @relation("ShopStaff")
+  subscription ShopSubscription?
+  categories   Category[]
+  products     Product[]
+  sales        Sale[]
+  expenses         Expense[]
+  alerts           Alert[]
+  loanApplications LoanApplication[]
+  createdAt        DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([ownerId])
+}
+
+model ShopSubscription {
+  id              Int                @id @default(autoincrement())
+  shopId          Int                @unique
+  shop            Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ownerId         Int
+  owner           User               @relation("UserSubscriptions", fields: [ownerId], references: [id], onDelete: Cascade)
+  packageType     PackageType        @default(ONE_MONTH)
+  amount          Decimal            @db.Decimal(10, 2)
+  paymentProofUrl String?
+  status          SubscriptionStatus @default(PENDING_APPROVAL)
+  startDate       DateTime?
+  endDate         DateTime?
+  adminNotes      String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  payments        SubscriptionPayment[]
+
+  @@index([shopId])
+  @@index([ownerId])
+  @@index([status])
+}
+
+model SubscriptionPayment {
+  id              Int              @id @default(autoincrement())
+  subscriptionId  Int
+  subscription    ShopSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  packageType     PackageType
+  amount          Decimal          @db.Decimal(10, 2)
+  paymentProofUrl String
+  status          SubscriptionStatus @default(PENDING_APPROVAL)
+  adminNotes      String?
+  reviewedBy      Int?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([subscriptionId])
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  shopId      Int
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([shopId, name])
+  @@index([shopId])
+}
+
+model Product {
+  id                Int        @id @default(autoincrement())
+  shopId            Int
+  shop              Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  categoryId        Int
+  category          Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name              String
+  sku               String?
+  barcode           String?
+  stockQuantity     Float      @default(0)
+  lowStockThreshold Float      @default(10)
+  costPrice         Decimal    @db.Decimal(10, 2)
+  sellingPrice      Decimal    @db.Decimal(10, 2)
+  unit              String     @default("pcs")
+  isActive          Boolean    @default(true)
+  saleItems         SaleItem[]
+  alerts            Alert[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([shopId])
+  @@index([categoryId])
+}
+
+model Sale {
+  id            Int           @id @default(autoincrement())
+  saleNumber    String
+  shopId        Int
+  shop          Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  cashierId     Int
+  cashier       User          @relation(fields: [cashierId], references: [id])
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  totalCost     Decimal       @db.Decimal(10, 2)
+  grossProfit   Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  notes         String?
+  saleItems     SaleItem[]
+  createdAt     DateTime      @default(now())
+
+  @@index([shopId, createdAt])
+}
+
+model SaleItem {
+  id        Int      @id @default(autoincrement())
+  saleId    Int
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitPrice Decimal  @db.Decimal(10, 2)
+  unitCost  Decimal  @db.Decimal(10, 2)
+  subtotal  Decimal  @db.Decimal(10, 2)
+  profit    Decimal  @db.Decimal(10, 2)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Expense {
+  id          Int             @id @default(autoincrement())
+  shopId      Int
+  shop        Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User            @relation(fields: [userId], references: [id])
+  category    ExpenseCategory @default(OTHER)
+  amount      Decimal         @db.Decimal(10, 2)
+  description String
+  expenseDate DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+
+  @@index([shopId, expenseDate])
+}
+
+enum LoanStatus {
+  SUBMITTED
+  UNDERWRITING_REVIEW
+  APPROVED
+  DISBURSED
+  REJECTED
+  REPAID
+}
+
+model LoanApplication {
+  id                    Int             @id @default(autoincrement())
+  shopId                Int
+  shop                  Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  requestedAmount       Decimal         @db.Decimal(10, 2)
+  approvedAmount        Decimal?        @db.Decimal(10, 2)
+  termDays              Int             @default(30)
+  interestRatePercent   Decimal         @default(3.50) @db.Decimal(5, 2)
+  status                LoanStatus      @default(SUBMITTED)
+  
+  // Algorithmic Underwriting Metrics (Snapshot at application)
+  avgMonthlyRevenue     Decimal         @db.Decimal(10, 2)
+  calculatedCreditScore Int             // 300 to 850 algorithm score
+  maxRecommendedLimit   Decimal         @db.Decimal(10, 2)
+  purpose               String          @default("Inventory Working Capital")
+  
+  underwriterNotes      String?
+  approvedAt            DateTime?
+  disbursedAt           DateTime?
+  dueDate               DateTime?
+  
+  repayments            LoanRepayment[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([shopId])
+  @@index([status])
+}
+
+model LoanRepayment {
+  id                Int             @id @default(autoincrement())
+  loanApplicationId Int
+  loanApplication   LoanApplication @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+  amountPaid        Decimal         @db.Decimal(10, 2)
+  paymentMethod     PaymentMethod   @default(CASH)
+  transactionRef    String?
+  paidAt            DateTime        @default(now())
+
+  @@index([loanApplicationId])
+}
+
+model Alert {
+  id        Int           @id @default(autoincrement())
+  shopId    Int
+  shop      Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  productId Int?
+  product   Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  type      AlertType
+  severity  AlertSeverity @default(WARNING)
+  title     String
+  message   String
+  isRead    Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  @@index([shopId, isRead])
+}
