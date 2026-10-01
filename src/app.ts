@@ -15,17 +15,16 @@ app.use(
   })
 );
 
-// Dynamic CORS configuration
-const allowedOrigins = ENV.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+import { isOriginAllowed } from './config/cors';
 
+// Dynamic CORS configuration supporting local LAN IPs and configured origins
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl, tests)
-      if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
-        callback(new Error(`CORS error: Origin '${origin}' is not permitted.`));
+        callback(null, false);
       }
     },
     credentials: true,

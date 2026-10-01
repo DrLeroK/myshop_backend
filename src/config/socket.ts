@@ -13,16 +13,16 @@ export interface SocketUserPayload {
 
 let io: SocketIOServer | null = null;
 
-export const initSocket = (httpServer: HttpServer): SocketIOServer => {
-  const allowedOrigins = ENV.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+import { isOriginAllowed } from './cors';
 
+export const initSocket = (httpServer: HttpServer): SocketIOServer => {
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        if (isOriginAllowed(origin)) {
           callback(null, true);
         } else {
-          callback(new Error('Socket CORS origin not allowed'));
+          callback(null, false);
         }
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE'],

@@ -155,7 +155,7 @@ Ensure [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/myshop_backend.git
+   git clone https://github.com/DrLeroK/myshop_backend.git
    cd myshop_backend
    ```
 
@@ -192,7 +192,7 @@ Ensure **Node.js (>= 20)** and a local **PostgreSQL (>= 15)** instance are insta
 
 1. **Clone and enter the directory**:
    ```bash
-   git clone https://github.com/your-username/myshop_backend.git
+   git clone https://github.com/DrLeroK/myshop_backend.git
    cd myshop_backend
    ```
 
